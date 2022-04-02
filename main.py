@@ -114,7 +114,7 @@ async def addDocker(interaction: discord.Interaction, repo: str):
     data = {"DOCKERHUB_USERNAME": "bugbeardov", "DOCKERHUB_TOKEN": os.environ["DOCKERHUB_TOKEN"]}
     for key, value in data.items():
         response = create_secret(repo, key, value)
-        if response.status_code != 201:
+        if not response.status_code.ok:
             await interaction.response.send_message("Error creating secret for " + repo)
             return
     await interaction.response.send_message(
