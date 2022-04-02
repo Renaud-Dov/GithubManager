@@ -1,6 +1,10 @@
+import json
+
 import discord
 from discord import app_commands, ui
 import requests
+from discord.utils import get
+from requests.auth import HTTPDigestAuth
 import os
 
 import logging
@@ -29,18 +33,20 @@ async def on_ready():
 def is_owner():
     async def predicate(interaction: discord.Interaction):
         # check if the user is the owner of the bot
-        return interaction.user.id == discord.AppInfo.owner.id
+        return interaction.user.id == 208480161421721600
+
     return app_commands.check(predicate)
 
 
-@tree.command(name='webhook',guild=discord.Object(id=760808606672093184), description="Add webhook to repo")
-@app_commands.describe(channel="Channel to send webhook to")
+@tree.command(name='webhook', guild=discord.Object(id=760808606672093184), description="Add webhook to repo")
 @app_commands.describe(repo="Repo to add webhook to")
 @is_owner()
-async def webhook(interaction: discord.Interaction, channel: discord.TextChannel, repo: str):
+async def webhook(interaction: discord.Interaction, repo: str):
     # TODO: Add a check to see if the repo is a valid repo
 
-    # create a webhook for the repo
+    # create channel in category id
+    category = get(interaction.guild.categories, name="status")
+    channel = await interaction.guild.create_text_channel(name=repo, category=category)
     try:
         wb = await channel.create_webhook(name=repo)
     except discord.errors.Forbidden:
@@ -64,15 +70,19 @@ async def webhook(interaction: discord.Interaction, channel: discord.TextChannel
             "pull_request_review_comment",
             "issue_comment",
             "issues",
-            "commit_comment",
+            "commit_comment"
         ],
         "active": True
     }
-    response = requests.post(f"https://api.github.com/repos/Renaud-Dov/{repo}/hooks", headers=headers, data=data)
+    response = requests.post(f"https://api.github.com/repos/Renaud-Dov/{repo}/hooks", headers=headers,
+                             data=json.dumps(data))
     if response.status_code == 201:
-        await interaction.response.send_message(f"Created webhook for {repo} (https://github.com/Renaud-Dov/{repo})")
+        await interaction.response.send_message(
+            f"Created webhook for {repo} in {channel.mention} (https://github.com/Renaud-Dov/{repo})")
     else:
         await interaction.response.send_message("Error creating webhook for " + repo)
+        # delete the webhook if it failed
+        await wb.delete()
 
 
 @tree.command(guild=discord.Object(id=760808606672093184), name="update", description="Update commands")
