@@ -105,7 +105,7 @@ async def updateCommands(interaction: discord.Interaction):
 @app_commands.describe(repo="Repo where you want to add/update secret")
 @is_owner()
 async def addSecret(interaction: discord.Interaction, repo: str):
-    interaction.response.send_modal(AskSecretValue(repo))
+    await interaction.response.send_modal(AskSecretValue(repo))
 
 
 @tree.command(guild=discord.Object(id=760808606672093184), name="docker", description="Add Docker credentials to repo")
@@ -121,13 +121,13 @@ async def addDocker(interaction: discord.Interaction, repo: str):
         "Created Docker Credentials (DOCKERHUB_USERNAME,DOCKERHUB_TOKEN) for " + repo)
 
 
-class AskSecretValue(ui.Modal):
+class AskSecretValue(ui.Modal,title="Add secret"):
     name = ui.TextInput(label='Secret Name', required=True, style=discord.TextStyle.short)
     secret = ui.TextInput(label='Secret value', required=True, style=discord.TextStyle.paragraph)
 
     def __init__(self, repo: str):
         super().__init__()
-        self.title = f"Set Secret Value for {repo}"
+        self.title = f"{repo} new secret"
         self.repo = repo
 
     async def on_submit(self, interaction: discord.Interaction):
