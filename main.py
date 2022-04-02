@@ -70,7 +70,17 @@ async def webhook(interaction: discord.Interaction, repo: str):
             "pull_request_review_comment",
             "issue_comment",
             "issues",
-            "commit_comment"
+            "commit_comment",
+            "check_run",
+            "check_suite",
+            "release",
+            "star",
+            "fork",
+            "workflow_run",
+            "workflow_job",
+            "package",
+            "create",
+            "delete"
         ],
         "active": True
     }
@@ -80,10 +90,10 @@ async def webhook(interaction: discord.Interaction, repo: str):
         await interaction.response.send_message(
             f"Created webhook for {repo} in {channel.mention} (https://github.com/Renaud-Dov/{repo})")
     else:
-        await interaction.response.send_message("Error creating webhook for " + repo)
-        # delete the webhook if it failed
+        await interaction.response.send_message("Error creating webhook for " + repo + response.text)
+        # delete the webhook and channel if it failed
         await wb.delete()
-
+        await channel.delete()
 
 @tree.command(guild=discord.Object(id=760808606672093184), name="update", description="Update commands")
 async def updateCommands(interaction: discord.Interaction):
