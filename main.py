@@ -1,9 +1,12 @@
 import discord
-from discord import app_commands
+from discord import app_commands, ui
 import requests
 import os
 
 import logging
+
+from src.header import get_headers
+from src.secrets import create_secret
 
 logger = logging.getLogger('discord')
 logger.setLevel(logging.WARNING)
@@ -23,11 +26,17 @@ async def on_ready():
     await tree.sync(guild=discord.Object(id=760808606672093184))
 
 
+def is_owner():
+    async def predicate(interaction: discord.Interaction):
+        # check if the user is the owner of the bot
+        return interaction.user.id == discord.AppInfo.owner.id
+    return app_commands.check(predicate)
 
 
-@tree.command(name='webhook')
+@tree.command(name='webhook',guild=discord.Object(id=760808606672093184), description="Add webhook to repo")
 @app_commands.describe(channel="Channel to send webhook to")
 @app_commands.describe(repo="Repo to add webhook to")
+@is_owner()
 async def webhook(interaction: discord.Interaction, channel: discord.TextChannel, repo: str):
     # TODO: Add a check to see if the repo is a valid repo
 
@@ -66,18 +75,47 @@ async def webhook(interaction: discord.Interaction, channel: discord.TextChannel
         await interaction.response.send_message("Error creating webhook for " + repo)
 
 
-def get_headers():
-    return {
-        "Authorization": "Basic " + os.environ['GITHUB_TOKEN'],
-        "Accept": "application/vnd.github.v3+json",
-        "Content-Type": "application/x-www-form-urlencoded"
-    }
-
-
 @tree.command(guild=discord.Object(id=760808606672093184), name="update", description="Update commands")
 async def updateCommands(interaction: discord.Interaction):
     await tree.sync(guild=discord.Object(id=760808606672093184))
     await interaction.response.send_message("Updated commands")
+
+
+@tree.command(guild=discord.Object(id=760808606672093184), name="add", description="Add/Update secret to repo")
+@app_commands.describe(repo="Repo where you want to add/update secret")
+@is_owner()
+async def addSecret(interaction: discord.Interaction, repo: str):
+    interaction.response.send_modal(AskSecretValue(repo))
+
+
+@tree.command(guild=discord.Object(id=760808606672093184), name="docker", description="Add Docker credentials to repo")
+@is_owner()
+async def addDocker(interaction: discord.Interaction, repo: str):
+    data = {"DOCKERHUB_USERNAME": "bugbeardov", "DOCKERHUB_TOKEN": os.environ["DOCKERHUB_TOKEN"]}
+    for key, value in data.items():
+        response = create_secret(repo, key, value)
+        if response.status_code != 201:
+            await interaction.response.send_message("Error creating secret for " + repo)
+            return
+    await interaction.response.send_message(
+        "Created Docker Credentials (DOCKERHUB_USERNAME,DOCKERHUB_TOKEN) for " + repo)
+
+
+class AskSecretValue(ui.Modal):
+    name = ui.TextInput(label='Secret Name', required=True, style=discord.TextStyle.short)
+    secret = ui.TextInput(label='Secret value', required=True, style=discord.TextStyle.paragraph)
+
+    def __init__(self, repo: str):
+        super().__init__()
+        self.title = f"Set Secret Value for {repo}"
+        self.repo = repo
+
+    async def on_submit(self, interaction: discord.Interaction):
+        response = create_secret(self.repo, self.name.value, self.secret.value)
+        if response.ok:
+            interaction.response.send_message(f"Added secret {self.name} to {self.repo}")
+        else:
+            interaction.response.send_message(f"Failed to add secret {self.name} to {self.repo}")
 
 
 client.run(os.environ.get("DISCORD_TOKEN"))
