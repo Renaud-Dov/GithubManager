@@ -1,4 +1,5 @@
 import json
+from typing import Optional
 
 import discord
 from discord import app_commands, ui
@@ -40,15 +41,16 @@ def is_owner():
 
 @tree.command(name='webhook', guild=discord.Object(id=760808606672093184), description="Add webhook to repo")
 @app_commands.describe(repo="Repo to add webhook to")
+@app_commands.describe(channel="Channel to add webhook to (if not specified, will create a new one in logs category)")
 @is_owner()
-async def webhook(interaction: discord.Interaction, repo: str):
-    # TODO: Add a check to see if the repo is a valid repo
-
-    # create channel in category id
-    category = get(interaction.guild.categories, name="logs")
-    channel = await interaction.guild.create_text_channel(name=repo, category=category)
+async def webhook(interaction: discord.Interaction, repo: str, channel: Optional[discord.TextChannel] = None):
+    if channel is None:
+        category = get(interaction.guild.categories, name="logs")
+        _channel = await interaction.guild.create_text_channel(name=repo, category=category)
+    else:
+        _channel = channel
     try:
-        wb = await channel.create_webhook(name=repo)
+        wb = await _channel.create_webhook(name=repo)
     except discord.errors.Forbidden:
         await interaction.response.send_message("I don't have permission to create webhooks in this channel")
         return
@@ -88,12 +90,13 @@ async def webhook(interaction: discord.Interaction, repo: str):
                              data=json.dumps(data))
     if response.status_code == 201:
         await interaction.response.send_message(
-            f"Created webhook for {repo} in {channel.mention} (https://github.com/Renaud-Dov/{repo})")
+            f"Created webhook for {repo} in {_channel.mention} (https://github.com/Renaud-Dov/{repo})")
     else:
         await interaction.response.send_message("Error creating webhook for " + repo + response.text)
         # delete the webhook and channel if it failed
         await wb.delete()
-        await channel.delete()
+        if channel is None:
+            await _channel.delete()
 
 
 @tree.command(guild=discord.Object(id=760808606672093184), name="update", description="Update commands")
@@ -138,6 +141,32 @@ class AskSecretValue(ui.Modal, title="Add secret"):
             await interaction.response.send_message(f"Added secret {self.name} to {self.repo}")
         else:
             await interaction.response.send_message(f"Failed to add secret {self.name} to {self.repo}")
+
+
+@tree.command(guild=discord.Object(id=760808606672093184), name="rerun", description="Rerun the last job workflow")
+@app_commands.describe(repo="Repo where you want to rerun the last job")
+@app_commands.describe(id="Run id to rerun. If not specified, the last run will be rerun")
+@is_owner()
+async def rerun(interaction: discord.Interaction, repo: str, id: Optional[int]):
+    response1 = requests.get(f"https://api.github.com/repos/Renaud-Dov/{repo}/actions/runs", headers=get_headers())
+    if not response1.ok:
+        await interaction.response.send_message("Error getting runs for " + repo)
+        return
+    data = response1.json()
+    if data["total_count"] == 0:
+        await interaction.response.send_message("No runs found for " + repo)
+        return
+    if id is None:
+        run_id = data["workflow_runs"][0]["id"]
+    else:
+        # filter runs to find the one with the run_number equal to id
+        run_id = next(filter(lambda x: x["run_number"] == id, data["workflow_runs"]))["id"]
+    response = requests.post(f"https://api.github.com/repos/Renaud-Dov/{repo}/actions/runs/{run_id}/rerun",
+                             headers=get_headers())
+    if response.ok:
+        await interaction.response.send_message(f"Restarted run {run_id}")
+    else:
+        await interaction.response.send_message(f"Error rerunning run {run_id}")
 
 
 client.run(os.environ.get("DISCORD_TOKEN"))
