@@ -95,6 +95,7 @@ async def webhook(interaction: discord.Interaction, repo: str):
         await wb.delete()
         await channel.delete()
 
+
 @tree.command(guild=discord.Object(id=760808606672093184), name="update", description="Update commands")
 async def updateCommands(interaction: discord.Interaction):
     await tree.sync(guild=discord.Object(id=760808606672093184))
@@ -112,16 +113,17 @@ async def addSecret(interaction: discord.Interaction, repo: str):
 @is_owner()
 async def addDocker(interaction: discord.Interaction, repo: str):
     data = {"DOCKERHUB_USERNAME": "bugbeardov", "DOCKERHUB_TOKEN": os.environ["DOCKERHUB_TOKEN"]}
+
     for key, value in data.items():
         response = create_secret(repo, key, value)
-        if not response.status_code.ok:
+        if not response.ok:
             await interaction.response.send_message("Error creating secret for " + repo)
             return
     await interaction.response.send_message(
         "Created Docker Credentials (DOCKERHUB_USERNAME,DOCKERHUB_TOKEN) for " + repo)
 
 
-class AskSecretValue(ui.Modal,title="Add secret"):
+class AskSecretValue(ui.Modal, title="Add secret"):
     name = ui.TextInput(label='Secret Name', required=True, style=discord.TextStyle.short)
     secret = ui.TextInput(label='Secret value', required=True, style=discord.TextStyle.paragraph)
 
@@ -133,9 +135,9 @@ class AskSecretValue(ui.Modal,title="Add secret"):
     async def on_submit(self, interaction: discord.Interaction):
         response = create_secret(self.repo, self.name.value, self.secret.value)
         if response.ok:
-            interaction.response.send_message(f"Added secret {self.name} to {self.repo}")
+            await interaction.response.send_message(f"Added secret {self.name} to {self.repo}")
         else:
-            interaction.response.send_message(f"Failed to add secret {self.name} to {self.repo}")
+            await interaction.response.send_message(f"Failed to add secret {self.name} to {self.repo}")
 
 
 client.run(os.environ.get("DISCORD_TOKEN"))
