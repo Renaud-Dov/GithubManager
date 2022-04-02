@@ -1,3 +1,4 @@
+import json
 from base64 import b64encode
 from src.header import get_headers
 import requests
@@ -16,14 +17,15 @@ def get_public_key(repo: str):
     headers = get_headers()
     response = requests.get(f"https://api.github.com/repos/Renaud-Dov/{repo}/actions/secrets/public-key",
                             headers=headers)
-    return response.json()["key"]
+    return response.json()
 
 
 def create_secret(repo,secret_name,secret_value):
     headers = get_headers()
-    data = dict(encrypted_value=encrypt(get_public_key(repo), secret_value))
+    pub_key = get_public_key(repo)
+    data = dict(encrypted_value=encrypt(pub_key["key"], secret_value), key_id=pub_key["key_id"])
     response = requests.put(
         f"https://api.github.com/repos/Renaud-Dov/{repo}/actions/secrets/{secret_name}",
         headers=headers,
-        data=data)
+        data=json.dumps(data))
     return response

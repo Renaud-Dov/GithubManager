@@ -45,7 +45,7 @@ async def webhook(interaction: discord.Interaction, repo: str):
     # TODO: Add a check to see if the repo is a valid repo
 
     # create channel in category id
-    category = get(interaction.guild.categories, name="status")
+    category = get(interaction.guild.categories, name="logs")
     channel = await interaction.guild.create_text_channel(name=repo, category=category)
     try:
         wb = await channel.create_webhook(name=repo)
