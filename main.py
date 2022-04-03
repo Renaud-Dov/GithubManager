@@ -4,12 +4,14 @@ from typing import Optional
 import discord
 from discord import app_commands, ui
 import requests
+from discord.ui import View, Button
 from discord.utils import get
 from requests.auth import HTTPDigestAuth
 import os
 
 import logging
 
+from src.Embed import BasicEmbed
 from src.header import get_headers
 from src.secrets import create_secret
 
@@ -89,8 +91,11 @@ async def webhook(interaction: discord.Interaction, repo: str, channel: Optional
     response = requests.post(f"https://api.github.com/repos/Renaud-Dov/{repo}/hooks", headers=headers,
                              data=json.dumps(data))
     if response.status_code == 201:
-        await interaction.response.send_message(
-            f"Created webhook for {repo} in {_channel.mention} (https://github.com/Renaud-Dov/{repo})")
+        embed = BasicEmbed(title="Webhook created", description=f"Webhook created for {repo}",
+                           color=discord.Color.green())
+        embed.add_field(name="Channel", value=f"{channel.mention}")
+        embed.add_field(name="Repository", value=f"https://github.com/Renaud-Dov/{repo}")
+        await interaction.response.send_message(embed=embed)
     else:
         await interaction.response.send_message("Error creating webhook for " + repo + response.text)
         # delete the webhook and channel if it failed
@@ -122,8 +127,11 @@ async def addDocker(interaction: discord.Interaction, repo: str):
         if not response.ok:
             await interaction.response.send_message("Error creating secret for " + repo)
             return
-    await interaction.response.send_message(
-        "Created Docker Credentials (DOCKERHUB_USERNAME,DOCKERHUB_TOKEN) for " + repo)
+
+    embed = BasicEmbed(title="Created Docker Credentials", description="Docker credentials created for " + repo,
+                       color=discord.Color.green())
+    embed.add_field(name="Repository", value=f"https://github.com/Renaud-Dov/{repo}")
+    await interaction.response.send_message(embed=embed)
 
 
 class AskSecretValue(ui.Modal, title="Add secret"):
@@ -138,6 +146,10 @@ class AskSecretValue(ui.Modal, title="Add secret"):
     async def on_submit(self, interaction: discord.Interaction):
         response = create_secret(self.repo, self.name.value, self.secret.value)
         if response.ok:
+            embed = BasicEmbed(title="Created secret", description=f"Secret created for {self.repo}",
+                               color=discord.Color.green())
+            embed.add_field(name="Repository", value=f"https://github.com/Renaud-Dov/{self.repo}")
+            await interaction.response.send_message(embed=embed)
             await interaction.response.send_message(f"Added secret {self.name} to {self.repo}")
         else:
             await interaction.response.send_message(f"Failed to add secret {self.name} to {self.repo}")
@@ -164,7 +176,9 @@ async def rerun(interaction: discord.Interaction, repo: str, id: Optional[int]):
     response = requests.post(f"https://api.github.com/repos/Renaud-Dov/{repo}/actions/runs/{run_id}/rerun",
                              headers=get_headers())
     if response.ok:
-        await interaction.response.send_message(f"Restarted run {run_id}")
+        embed = BasicEmbed(title="Rerun workflow", description=f"Rerun workflow for {repo}", color=discord.Color.green())
+        embed.add_field(name="Repository", value=f"https://github.com/Renaud-Dov/{repo}")
+        await interaction.response.send_message(embed=embed)
     else:
         await interaction.response.send_message(f"Error rerunning run {run_id}")
 
