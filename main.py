@@ -41,6 +41,45 @@ def is_owner():
     return app_commands.check(predicate)
 
 
+def generate_secret():
+    # generate a secret key made of 16 random bytes
+    secret = os.urandom(16)
+    secret = secret.hex()
+    return secret
+
+
+@tree.command(name='wb', guild=discord.Object(id=760808606672093184), description="Add update webhook to repo")
+@app_commands.describe(repo="Repo to add webhook to")
+@app_commands.describe(webhook="Name of the webhook")
+@is_owner()
+async def updater_webhook(interaction: discord.Interaction, repo: str, webhook: str):
+    headers = get_headers()
+    data = {
+        "name": "wb-bugbear",
+        "config": {
+            "url": f"https://wb.bugbear.fr/hooks/{webhook}",
+            "content_type": "json",
+            "secret": generate_secret()
+        },
+        "events": [
+            "push"
+        ],
+        "active": True
+    }
+    response = requests.post(f"https://api.github.com/repos/Renaud-Dov/{repo}/hooks", headers=headers,
+                             data=json.dumps(data))
+    if response.status_code == 201:
+        embed = BasicEmbed(title="Webhook created", description=f"Webhook created for {repo}",
+                           color=discord.Color.green())
+        embed.add_field(name="Repository", value=f"https://github.com/Renaud-Dov/{repo}")
+        embed.add_field(name="Webhook", value=f"https://wb.bugbear.fr/hooks/{webhook}")
+        await interaction.response.send_message(embed=embed)
+        await interaction.user.send(f'Your secret is: `{data["config"]["secret"]}`')
+
+    else:
+        await interaction.response.send_message("Error creating webhook for " + repo + response.text)
+
+
 @tree.command(name='webhook', guild=discord.Object(id=760808606672093184), description="Add webhook to repo")
 @app_commands.describe(repo="Repo to add webhook to")
 @app_commands.describe(channel="Channel to add webhook to (if not specified, will create a new one in logs category)")
@@ -176,7 +215,8 @@ async def rerun(interaction: discord.Interaction, repo: str, id: Optional[int]):
     response = requests.post(f"https://api.github.com/repos/Renaud-Dov/{repo}/actions/runs/{run_id}/rerun",
                              headers=get_headers())
     if response.ok:
-        embed = BasicEmbed(title="Rerun workflow", description=f"Rerun workflow for {repo}", color=discord.Color.green())
+        embed = BasicEmbed(title="Rerun workflow", description=f"Rerun workflow for {repo}",
+                           color=discord.Color.green())
         embed.add_field(name="Repository", value=f"https://github.com/Renaud-Dov/{repo}")
         await interaction.response.send_message(embed=embed)
     else:
