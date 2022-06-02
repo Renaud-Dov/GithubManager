@@ -1,0 +1,38 @@
+{
+    "id": "{name}",
+    "execute-command": "/home/dov/Projects/github.py",
+    "pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "-r"
+      },
+      {
+        "source": "string",
+        "name": "{name}"
+      }
+    ],
+    "trigger-rule": {
+      "and": [
+        {
+          "match": {
+            "type": "payload-hash-sha1",
+            "secret": "{secret}",
+            "parameter": {
+              "source": "header",
+              "name": "X-Hub-Signature"
+            }
+          }
+        },
+        {
+          "match": {
+            "type": "value",
+            "value": "completed",
+            "parameter": {
+              "source": "payload",
+              "name": "action"
+            }
+          }
+        }
+      ]
+    }
+}

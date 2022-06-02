@@ -4,9 +4,7 @@ from typing import Optional
 import discord
 from discord import app_commands, ui
 import requests
-from discord.ui import View, Button
 from discord.utils import get
-from requests.auth import HTTPDigestAuth
 import os
 
 import logging
@@ -48,58 +46,45 @@ def generate_secret():
     return secret
 
 
+def getConfigRules(type_event):
+    if type_event == "push":
+        with open("example2.txt", "r") as file:
+            return file.read()
+    elif type_event == "check":
+        with open("example.txt", "r") as file:
+            return file.read()
+
+
 @tree.command(name='wb', guild=discord.Object(id=760808606672093184), description="Add update webhook to repo")
 @app_commands.describe(repo="Repo to add webhook to")
-@app_commands.describe(webhook="Name of the webhook")
+@app_commands.describe(type="type of trigger, either 'push' or 'check'")
+@app_commands.describe(webhook="Name of webhook, optional")
 @is_owner()
-async def updater_webhook(interaction: discord.Interaction, repo: str, webhook: str):
-    headers = get_headers()
-    data = {
-        "name": "wb-bugbear",
-        "config": {
-            "url": f"https://wb.bugbear.fr/hooks/{webhook}",
-            "content_type": "json",
-            "secret": generate_secret()
-        },
-        "events": [
-            "push"
-        ],
-        "active": True
-    }
-    response = requests.post(f"https://api.github.com/repos/Renaud-Dov/{repo}/hooks", headers=headers,
-                             data=json.dumps(data))
-    if response.status_code == 201:
+async def updater_webhook(interaction: discord.Interaction, repo: str, type: str, webhook: Optional[str] = None):
+    if type != "push" and type != "check":
+        await interaction.response.send_message(
+            BasicEmbed(title="Error", description="Type must be either 'push' or 'check'"))
+        return
+    if webhook is None:
+        webhook = repo
+
+    url = f"https://wb.bugbear.fr/hooks/{webhook}"
+    secret = generate_secret()
+    response = push_webhook(repo, url, secret)
+    if response.status_code != 201:
+        await interaction.response.send_message(
+            f"Error creating webhook for {repo} (code {response.status_code}) : ```{response.text}```")
+    else:
         embed = BasicEmbed(title="Webhook created", description=f"Webhook created for {repo}",
                            color=discord.Color.green())
         embed.add_field(name="Repository", value=f"https://github.com/Renaud-Dov/{repo}")
         embed.add_field(name="Webhook", value=f"https://wb.bugbear.fr/hooks/{webhook}")
         await interaction.response.send_message(embed=embed)
-        await interaction.user.send(f'Your secret is: `{data["config"]["secret"]}`')
-
-    else:
-        await interaction.response.send_message("Error creating webhook for " + repo + response.text)
+        file_config = getConfigRules(type).replace("{name}", webhook).replace("{secret}", secret)
+        await interaction.user.send("```json\n" + file_config + "\n```")
 
 
-@tree.command(name='webhook', guild=discord.Object(id=760808606672093184), description="Add webhook to repo")
-@app_commands.describe(repo="Repo to add webhook to")
-@app_commands.describe(channel="Channel to add webhook to (if not specified, will create a new one in logs category)")
-@is_owner()
-async def webhook(interaction: discord.Interaction, repo: str, channel: Optional[discord.TextChannel] = None):
-    if channel is None:
-        category = get(interaction.guild.categories, name="logs")
-        _channel = await interaction.guild.create_text_channel(name=repo, category=category)
-    else:
-        _channel = channel
-    try:
-        wb = await _channel.create_webhook(name=repo)
-    except discord.errors.Forbidden:
-        await interaction.response.send_message("I don't have permission to create webhooks in this channel")
-        return
-    except discord.errors.HTTPException:
-        await interaction.response.send_message("I failed creating a webhook for the repo")
-        return
-
-    url = wb.url + "/github"
+def push_webhook(repo: str, url: str, secret: Optional[str]):
     headers = get_headers()
     data = {
         "name": "web",
@@ -127,12 +112,37 @@ async def webhook(interaction: discord.Interaction, repo: str, channel: Optional
         ],
         "active": True
     }
-    response = requests.post(f"https://api.github.com/repos/Renaud-Dov/{repo}/hooks", headers=headers,
-                             data=json.dumps(data))
+    if secret:
+        data["config"]["secret"] = secret
+    return requests.post(f"https://api.github.com/repos/Renaud-Dov/{repo}/hooks", headers=headers,
+                         data=json.dumps(data))
+
+
+@tree.command(name='webhook', guild=discord.Object(id=760808606672093184), description="Add webhook to repo")
+@app_commands.describe(repo="Repo to add webhook to")
+@app_commands.describe(channel="Channel to add webhook to (if not specified, will create a new one in logs category)")
+@is_owner()
+async def add_webhook(interaction: discord.Interaction, repo: str, channel: Optional[discord.TextChannel] = None):
+    if channel is None:
+        category = get(interaction.guild.categories, name="logs")
+        _channel = await interaction.guild.create_text_channel(name=repo, category=category)
+    else:
+        _channel = channel
+    try:
+        wb = await _channel.create_webhook(name=repo)
+    except discord.errors.Forbidden:
+        await interaction.response.send_message("I don't have permission to create webhooks in this channel")
+        return
+    except discord.errors.HTTPException:
+        await interaction.response.send_message("I failed creating a webhook for the repo")
+        return
+
+    url = wb.url + "/github"
+    response = push_webhook(repo,url)
     if response.status_code == 201:
         embed = BasicEmbed(title="Webhook created", description=f"Webhook created for {repo}",
                            color=discord.Color.green())
-        embed.add_field(name="Channel", value=f"{channel.mention}")
+        embed.add_field(name="Channel", value=f"{_channel.mention}")
         embed.add_field(name="Repository", value=f"https://github.com/Renaud-Dov/{repo}")
         await interaction.response.send_message(embed=embed)
     else:
